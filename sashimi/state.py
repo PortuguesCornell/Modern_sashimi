@@ -146,7 +146,7 @@ class LightSourceSettings(ParametrizedQt):
     def __init__(self):
         super().__init__()
         self.name = "general/light_source"
-        self.intensity = Param(0, (0, 40), unit=conf["light_source"]["intensity_units"])
+        self.intensity = Param(0, (0, 100), unit=conf["light_source"]["intensity_units"])
 
 
 def convert_planar_params(planar: PlanarScanningSettings):

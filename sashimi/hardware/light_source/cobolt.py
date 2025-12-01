@@ -16,6 +16,7 @@ conf = read_config()
 class CoboltLaser(AbstractLightSource):
     def __init__(self, port):
         super().__init__(port)
+	#print( self.port)
         self.socket = manager.open_resource(
             self.port,
             **{

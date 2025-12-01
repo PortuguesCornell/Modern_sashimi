@@ -54,6 +54,8 @@ class NIBoards(AbstractScanInterface):
             max_val=self.conf["z_board"]["read"]["max_val"],
         )
 
+	self.read_task.in_stream.input_buf_size = 1000 * self.n_samples
+
         # write channels are on board 1: piezo and z galvos
         self.write_task_z.ao_channels.add_ao_voltage_chan(
             self.conf["z_board"]["write"]["channel"],

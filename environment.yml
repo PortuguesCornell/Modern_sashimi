@@ -4,13 +4,13 @@ channels:
 dependencies:
   - python=3.8
   - pip
-  - pyqt
-  - numpy
+  - pyqt = 5.12.3
+  - numpy = 1.19.5
   - scipy
-  - numba >= 0.55.1
+  - numba = 0.55.1
   - pandas
-  - pytables
+  - pytables = 3.6.1
   - ffmpeg
   - scikit-image
   - h5py
-  - vispy
+  - vispy = 0.6.6
