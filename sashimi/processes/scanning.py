@@ -61,8 +61,8 @@ class ScannerProcess(LoggingProcess):
         waiting_event: LoggedEvent,
         restart_event: LoggedEvent,
         start_experiment_from_scanner=False,
-        n_samples_waveform=2000,
-        sample_rate=4000,
+        n_samples_waveform=10000,
+        sample_rate=40000,
     ):
         """"""
         super().__init__(name="scanner")
@@ -73,7 +73,7 @@ class ScannerProcess(LoggingProcess):
 
         self.parameter_queue = Queue()
 
-        self.waveform_queue = ArrayQueue(max_mbytes=1000)
+        self.waveform_queue = ArrayQueue(max_mbytes=100)
         self.n_samples = n_samples_waveform
         self.sample_rate = sample_rate
 
