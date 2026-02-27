@@ -40,15 +40,23 @@ class ExternalComm(LoggingProcess):
         self.scanning_trigger = scanning_trigger
         if self.scanning_trigger:
             self.waiting_event = is_waiting_event.new_reference(self.logger)
+        self._last_trigger_cond = False
 
     def trigger_condition(self):
         if self.scanning_trigger:
-            return (
+            cond = (
                 self.start_comm.is_set()
                 and self.saving_event.is_set()
                 and self.is_triggered_event.is_set()
                 and not self.waiting_event.is_set()
             )
+            # Log only on change to avoid flooding every loop/frame
+            if cond != self._last_trigger_cond:
+                self.logger.log_message(
+                    f"trigger_condition changed: start_comm={self.start_comm.is_set()}, saving={self.saving_event.is_set()}, is_triggered={self.is_triggered_event.is_set()}, waiting={self.waiting_event.is_set()} -> {cond}"
+                )
+                self._last_trigger_cond = cond
+            return cond
 
     def run(self):
         self.logger.log_message("started")
@@ -62,9 +70,24 @@ class ExternalComm(LoggingProcess):
                 except Empty:
                     break
             if self.trigger_condition():
+                # Wait for camera start signal (experiment_start_event) to ensure
+                # frames are actually being produced before sending the external
+                # trigger. Use the underlying Event.wait with a short timeout.
+                try:
+                    started = self.start_comm.event.wait(timeout=1.0)
+                except Exception:
+                    # If underlying event is not available, fall back to sending
+                    started = self.start_comm.is_set()
+
+                if not started:
+                    self.logger.log_message("Skipping trigger: camera start signal not received yet")
+                    continue
+
+                print(f"[ExternalComm] sending trigger with config keys: {list(current_config.keys())}")
                 duration = self.comm.trigger_and_receive_duration(current_config)
                 if duration is not None:
                     self.duration_queue.put(duration)
                 self.logger.log_message("sent communication")
+                print("[ExternalComm] clearing start_comm")
                 self.start_comm.clear()
         self.close_log()

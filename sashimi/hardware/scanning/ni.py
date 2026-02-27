@@ -3,7 +3,7 @@ from sashimi.hardware.scanning.__init__ import AbstractScanInterface
 from contextlib import contextmanager
 
 from nidaqmx.task import Task
-from nidaqmx.constants import Edge, AcquisitionType
+from nidaqmx.constants import Edge, AcquisitionType, RegenerationMode
 from nidaqmx.stream_readers import AnalogSingleChannelReader
 from nidaqmx.stream_writers import AnalogMultiChannelWriter
 
@@ -54,8 +54,6 @@ class NIBoards(AbstractScanInterface):
             max_val=self.conf["z_board"]["read"]["max_val"],
         )
 
-        #self.read_task.in_stream.input_buf_size = 1000 * self.n_samples
-
         # write channels are on board 1: piezo and z galvos
         self.write_task_z.ao_channels.add_ao_voltage_chan(
             self.conf["z_board"]["write"]["channel"],
@@ -71,28 +69,40 @@ class NIBoards(AbstractScanInterface):
         )
 
         # Set the timing of both to the onboard clock so that they are synchronised
+        # Use larger buffer for faster hardware to prevent buffer overruns
+        # Buffer multiplier can be configured in hardware_config.toml
+        buffer_multiplier = self.conf.get("ni_buffer_multiplier", 10)
+        buffer_size = self.n_samples * buffer_multiplier
         self.read_task.timing.cfg_samp_clk_timing(
             rate=self.sample_rate,
             source="OnboardClock",
             active_edge=Edge.RISING,
             sample_mode=AcquisitionType.CONTINUOUS,
-            samps_per_chan=self.n_samples,
+            samps_per_chan=buffer_size,
         )
+        # Configure input buffer size explicitly
+        self.read_task.in_stream.input_buf_size = buffer_size
         self.write_task_z.timing.cfg_samp_clk_timing(
             rate=self.sample_rate,
             source="OnboardClock",
             active_edge=Edge.RISING,
             sample_mode=AcquisitionType.CONTINUOUS,
-            samps_per_chan=self.n_samples,
+            samps_per_chan=buffer_size,
         )
+        # Configure output buffer and enable regeneration for continuous waveforms
+        self.write_task_z.out_stream.output_buf_size = buffer_size
+        self.write_task_z.out_stream.regen_mode = RegenerationMode.ALLOW_REGENERATION
 
         self.write_task_xy.timing.cfg_samp_clk_timing(
             rate=self.sample_rate,
             source="OnboardClock",
             active_edge=Edge.RISING,
             sample_mode=AcquisitionType.CONTINUOUS,
-            samps_per_chan=self.n_samples,
+            samps_per_chan=buffer_size,
         )
+        # Configure output buffer and enable regeneration for continuous waveforms
+        self.write_task_xy.out_stream.output_buf_size = buffer_size
+        self.write_task_xy.out_stream.regen_mode = RegenerationMode.ALLOW_REGENERATION
 
         # This is necessary to synchronise reading and writing
         self.read_task.triggers.start_trigger.cfg_dig_edge_start_trig(
@@ -109,10 +119,13 @@ class NIBoards(AbstractScanInterface):
         self.xy_writer.write_many_sample(self.xy_array)
 
     def read(self):
+        # Calculate timeout based on sample rate with safety margin for faster hardware
+        # timeout = (samples / sample_rate) * safety_factor
+        timeout = (self.n_samples / self.sample_rate) * 3.0
         self.z_reader.read_many_sample(
             self.read_array,
             number_of_samples_per_channel=self.n_samples,
-            timeout=1,
+            timeout=timeout,
         )
         self.read_array[:] = self.read_array
 
